@@ -22,9 +22,9 @@ ax[1].legend(["upstream","wetland"])
 ## ax[1].xlabel("time")
 #ax[1].title("FWS A Valve Actions")
 
-ax[2].plot(FWS_scen_A["downstream_basin_cuload"],'k')
 ax[2].plot(FWS_scen_A["wetland_cuload"],"b")
-ax[2].plot(FWS_scen_A["outlet_channel_cuload"],'g')
+ax[2].plot(FWS_scen_A["wetland_effluent_cuload"],'g')
+ax[2].legend(["cumulative load into wetland","cumulative load out of wetland"])
 ##ax[2].ylabel("cumulative NO load")
 ##ax[2].title("FWS A Nitrate Removal")
 
@@ -33,5 +33,4 @@ ax[2].plot(FWS_scen_A["outlet_channel_cuload"],'g')
 
 plt.show()
 
-
-print("yuh")
+print("done.")

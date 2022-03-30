@@ -27,12 +27,15 @@ def analysis(control_type,scenario=None):
     downstream_basin_cuload = []
 
     wetland_inflow = []
-    wetland_NO = []
+    wetland_influent_NO = []
+    wetland_effluent_NO = []
     wetland_depth = []
     wetland_volume = []
     wetland_outflow = []
     wetland_cuload = []
-    wetland_DO = []  
+    #wetland_influent_DO = []  
+    #wetland_effluent_DO = []
+
 
     outlet_channel_flow = []
     outlet_channel_NO = []
@@ -78,7 +81,8 @@ def analysis(control_type,scenario=None):
             # record NO concentrations
             upstream_basin_NO.append(upstream_basin.pollut_quality["NO"])
             downstream_basin_NO.append(downstream_basin.pollut_quality["NO"])
-            wetland_NO.append(wetland.pollut_quality["NO"])
+            wetland_influent_NO.append(wetland.pollut_quality["NO"])
+            wetland_effluent_NO.append(solver[5].y[-1])
             outlet_channel_NO.append(outlet_channel.pollut_quality["NO"])
 
             # record quantity measures (flows and volumes)
@@ -116,7 +120,7 @@ def analysis(control_type,scenario=None):
                 solver[i].integrate(solver[i].t+dt)
 
             # this is the effluent DO concentration (conc in last "third" of wetland)
-            wetland_DO.append(solver[2].y) 
+            # wetland_effluent_DO.append(solver[2].y) 
 
             # assume because of minimal development that the wetland's subcatchment doesn't contribute nitrate
             # then influent nitrate concentration is that in the downstream_basin pool that flows into the wetland
@@ -134,8 +138,9 @@ def analysis(control_type,scenario=None):
                     solver[i].set_f_params(wetland_inflow[-1], solver[i-1].y, wetland_outflow[-1], wetland_volume[-1], k_ni)
                 solver[i].integrate(solver[i].t+dt)
 
+
             # this is the effluent NO concentration (conc in last "third" of wetland)
-            wetland.pollut_quality["NO"] = solver[5].y
+            wetland.pollut_quality["NO"] = solver[5].y # this doesn't actually work because the setters don't work
             # the internal (first and middle third) NO values will be tracked by the ode solvers
             # this is the value that determines loading into the channel so it makes sense to define it as the outlet
 
@@ -154,7 +159,7 @@ def analysis(control_type,scenario=None):
                 # Wetland & Retention basin Control Actions (every 15 mins - 5 sec timesteps)
 
                 # If DO level is not anoxic
-                if wetland_DO[-1] > 1.0:
+                if solver[0].y[-1] > 1.0:
                     # And if the wetland has capacity
                     if wetland_depth[-1] <= 9.5:
                         # Close the wetland valve and proportionally open retention basin valve C = Qmax/(A*sqrt(2*g*d))
@@ -165,7 +170,7 @@ def analysis(control_type,scenario=None):
                         wetland_outlet_valve.target_setting = 1.75*(70.6/(np.sqrt(2*32.2*wetland_depth[-1])*12.6))
                         upstream_basin_valve.target_setting = 0.0
                 # If DO level is anoxic
-                elif wetland_DO[-1] <= 1.0:
+                elif solver[0].y[-1] <= 1.0:
                     # And if the (last third) wetland NO concentration is low, open both valves proportionally
                     if solver[5].y[0] <= 5.0:
                         wetland_outlet_valve.target_setting = 1.75*(70.6/(np.sqrt(2*32.2*wetland_depth[-1])*12.6))
@@ -292,9 +297,14 @@ def analysis(control_type,scenario=None):
                     # if error < 0 this will close the wetland valve and retain more water
                     # if error > 0 this will open the wetland valve and release more water
                     _tempcount= 0 # reset timer
-                    if (error < 0.25): # more than four inches below our desired setpoint
-                        upstream_basin_valve.target_setting = upstream_basin_valve.current_setting - K_p*(error/wetland_depth[-1]) # open the upstream valve
+
+                    # make sure upstream basin is being used (retain a permanent depth of 3 feet)
+                    if (upstream_basin_depth[-1] > 3):
+                        # make upstream valve slower than wetland to avoid any oscillatory behavior due to travel time
+                        upstream_basin_valve.target_setting = upstream_basin_valve.current_setting - 0.1*K_p*(error/wetland_depth[-1]) # open the upstream valve
                         # we can get rid of water with just local control, but we need the upstream asset if we want to add water
+                    else:
+                        upstream_basin_valve.target_setting = 0 # close the valve
 
             
 
@@ -335,46 +345,49 @@ def analysis(control_type,scenario=None):
     timestep = [5]*len(upstream_basin_inflow)
     upstream_basin_load = [a*b*c*d*e for a,b,c,d,e in zip(upstream_basin_NO,upstream_basin_outflow,conv_cfs_cms, conv_mgs_kgs,timestep)]
     downstream_basin_load = [a*b*c*d*e for a,b,c,d,e in zip(downstream_basin_NO,downstream_basin_outflow,conv_cfs_cms,conv_mgs_kgs,timestep)]
-    wetland_load = [a*b*c*d*e for a,b,c,d,e in zip(wetland_NO,wetland_outflow,conv_cfs_cms, conv_mgs_kgs,timestep)]
+    wetland_load = [a*b*c*d*e for a,b,c,d,e in zip(wetland_influent_NO,wetland_inflow,conv_cfs_cms, conv_mgs_kgs,timestep)]
+    wetland_effluent_load = [a*b*c*d*e for a,b,c,d,e in zip(wetland_effluent_NO,wetland_outflow,conv_cfs_cms, conv_mgs_kgs,timestep)]
     outlet_channel_load = [a*b*c*d*e for a,b,c,d,e in zip(outlet_channel_NO,outlet_channel_flow,conv_cfs_cms,conv_mgs_kgs,timestep)]
 
     # Calculate cumulative load (dt = 1)
     upstream_basin_cuload = np.cumsum(upstream_basin_load)
     downstream_basin_cuload = np.cumsum(downstream_basin_load)
     wetland_cuload = np.cumsum(wetland_load)
+    wetland_effluent_cuload = np.cumsum(wetland_effluent_load)
+    wetland_cumulative_removal = wetland_cuload - wetland_effluent_cuload
     outlet_channel_cuload = np.cumsum(outlet_channel_load)
     cols = ["upstream_basin_inflow_m", "downstream_basin_inflow_m","wetland_inflow_m", "outlet_channel_flow_m",
                             "upstream_basin_outflow_m", "downstream_basin_outflow_m", "wetland_outflow_m", 
                             "upstream_basin_depth_m", "downstream_basin_depth_m", "wetland_depth_m", "outlet_channel_depth_m",
-                            "upstream_basin_cuload", "downstream_basin_cuload", "wetland_cuload", "outlet_channel_cuload",
+                            "upstream_basin_cuload", "downstream_basin_cuload", "wetland_cuload","wetland_effluent_cuload","wetland_cumulative_removal", "outlet_channel_cuload",
                             "wetland_outlet_valve_record","upstream_basin_valve_record"]
     results = pd.DataFrame(np.transpose([upstream_basin_inflow_m, downstream_basin_inflow_m,wetland_inflow_m, outlet_channel_flow_m,
                             upstream_basin_outflow_m, downstream_basin_outflow_m, wetland_outflow_m, 
                             upstream_basin_depth_m, downstream_basin_depth_m, wetland_depth_m, outlet_channel_depth_m,
-                            upstream_basin_cuload, downstream_basin_cuload, wetland_cuload, outlet_channel_cuload,
+                            upstream_basin_cuload, downstream_basin_cuload, wetland_cuload, wetland_effluent_cuload, wetland_cumulative_removal, outlet_channel_cuload,
                             wetland_outlet_valve_record, upstream_basin_valve_record]),
                            columns=cols)
     return results
 
 
 
-uncontrolled_scenario = analysis("uncontrolled")
-uncontrolled_scenario.to_csv("uncontrolled.csv")
+#uncontrolled_scenario = analysis("uncontrolled")
+#uncontrolled_scenario.to_csv("uncontrolled.csv")
 
 FWS_A = analysis("FWS","A")
 FWS_A.to_csv("FWS_A.csv")
 
-FWS_B = analysis("FWS","B")
-FWS_B.to_csv("FWS_B.csv")
+#FWS_B = analysis("FWS","B")
+#FWS_B.to_csv("FWS_B.csv")
 
-FWS_C = analysis("FWS","C")
-FWS_C.to_csv("FWS_C.csv")
+#FWS_C = analysis("FWS","C")
+#FWS_C.to_csv("FWS_C.csv")
     
-quantity_control = analysis("quantity")
-quantity_control.to_csv("quantity_control.csv")
+#quantity_control = analysis("quantity")
+#quantity_control.to_csv("quantity_control.csv")
 
-nitrate_removal_control = analysis("nitrate_removal")
-nitrate_removal_control.to_csv("nitrate_removal.csv")
+#nitrate_removal_control = analysis("nitrate_removal")
+#nitrate_removal_control.to_csv("nitrate_removal.csv")
 
 
 
