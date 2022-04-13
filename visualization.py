@@ -3,34 +3,64 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-FWS_scen_A = pd.read_csv("FWS_A.csv")
 
-fig, ax = plt.subplots(4,1)
+def viz(scenario_name):
 
+    pyswmm_output = pd.read_csv(str(scenario_name + ".csv"))
 
-ax[0].plot(FWS_scen_A["upstream_basin_depth_m"],'r')
-ax[0].plot(FWS_scen_A["wetland_depth_m"],'b')
-ax[0].legend(["upstream","wetland"])
-## ax[0].ylabel("depth (m)")
-## ax[0].xlabel("time")
-#ax[0].title("FWS A depths")
-
-ax[1].plot(FWS_scen_A["upstream_basin_valve_record"],"r")
-ax[1].plot(FWS_scen_A["wetland_outlet_valve_record"],"b")
-ax[1].legend(["upstream","wetland"])
-##ax[1].ylabel("valve position")
-## ax[1].xlabel("time")
-#ax[1].title("FWS A Valve Actions")
-
-ax[2].plot(FWS_scen_A["wetland_cuload"],"b")
-ax[2].plot(FWS_scen_A["wetland_effluent_cuload"],'g')
-ax[2].legend(["cumulative load into wetland","cumulative load out of wetland"])
-##ax[2].ylabel("cumulative NO load")
-##ax[2].title("FWS A Nitrate Removal")
+    with open(str(scenario_name + "_NO_results.txt"),'w') as f:
+        f.write("NO removal efficiency:\n")
+        f.write("Cumulative Input = ")
+        f.write(str(pyswmm_output["wetland_cuload"].values[-1:]))
+        f.write("\nCumulative Output = ")
+        f.write( str(pyswmm_output["wetland_effluent_cuload"].values[-1:]))
+        f.write("\n1 - (Input / Output) = ")
+        f.write(str(1-pyswmm_output["wetland_effluent_cuload"].values[-1:]/pyswmm_output["wetland_cuload"].values[-1:]))
 
 
+    fig, ax = plt.subplots(4,1)
+    fig.set_size_inches(7,4)
+    fig.dpi = 500 # high res plot
+    plt.tight_layout()
+    
+
+    
+    ax[0].plot(pyswmm_output["upstream_basin_depth_m"],'r')
+    ax[0].plot(pyswmm_output["wetland_depth_m"],'b')
+    #ax[0].legend(["upstream depth (m)","wetland depth (m)"])
+    ax[0].legend(["upstream", "wetland"],loc="upper left",fontsize="x-small")
+    ax[0].set_title("depth (m)",fontsize="x-small")
 
 
-plt.show()
+    ax[1].plot(pyswmm_output["upstream_basin_valve_record"],"r")
+    ax[1].plot(pyswmm_output["wetland_outlet_valve_record"],"b")
+    #ax[1].legend(["upstream valve setting","wetland valve setting"])
+    ax[1].legend(["upstream", "wetland"],loc="upper left",fontsize="x-small")
+    ax[1].set_title("valve open %",fontsize="x-small")
 
-print("done.")
+
+    ax[2].plot(pyswmm_output["wetland_cuload"],"b")
+    ax[2].plot(pyswmm_output["wetland_effluent_cuload"],'g')
+    #ax[2].legend(["cumulative load (NO) into wetland","cumulative load (NO) out of wetland"])
+    ax[2].legend(["inflow", "outflow"],loc="upper left",fontsize="x-small")
+    ax[2].set_title("cumulative load (kg NO) - wetland",fontsize="x-small")
+
+    ax[3].plot(pyswmm_output["wetland_inflow_m"],"b")
+    ax[3].plot(pyswmm_output["wetland_outflow_m"],"g")
+    #ax[3].legend(["wetland inflow (cms)","wetland outflow (cms)"])
+    ax[3].legend(["inflow", "outflow"],loc="upper left",fontsize="x-small")
+    ax[3].set_title("flow (cms) - wetland",fontsize="x-small")
+    
+    
+
+    plt.savefig(str(scenario_name + "_results.jpg"),dpi=500)
+
+    print("\nfig done\n")
+
+
+viz("uncontrolled")
+viz("quantity_control")
+viz("nitrate_removal")
+viz("FWS_A")
+viz("FWS_B")
+viz("FWS_C")

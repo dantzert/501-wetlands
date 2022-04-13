@@ -157,6 +157,7 @@ def analysis(control_type,scenario=None):
                     print("\n\nControlling for Removal of Nitrate (Water Quality)\n")
 
                 # Wetland & Retention basin Control Actions (every 15 mins - 5 sec timesteps)
+                _tempcount= 0 # reset timer because we're about to take action
 
                 # If DO level is not anoxic
                 if solver[0].y[-1] > 1.0:
@@ -186,7 +187,7 @@ def analysis(control_type,scenario=None):
                             wetland_outlet_valve.target_setting = 1.75*(70.6/(np.sqrt(2*32.2*wetland_depth[-1])*12.6))
                             upstream_basin_valve.target_setting = 0.0
 
-                    _tempcount= 0 # reset timer
+                
 
 
             ## QUANTITY ##
@@ -198,8 +199,8 @@ def analysis(control_type,scenario=None):
                     upstream_basin_valve.target_setting = 0 # start closed
                     wetland_outlet_valve.target_setting = 0 # start closed
 
-                # Q_max for water quality was 70.6, take a tighter bound on this, say 50
-                Q_desired = 50 # flow (cfs)
+                # Q_max for water quality was 70.6, take a tighter bound on this
+                Q_desired = 30 # flow (cfs)
                 
                 # proportional control for flow rate
                 K_p = 0.05
@@ -298,11 +299,13 @@ def analysis(control_type,scenario=None):
                     # if error > 0 this will open the wetland valve and release more water
                     _tempcount= 0 # reset timer
 
-                    # make sure upstream basin is being used (retain a permanent depth of 3 feet)
-                    if (upstream_basin_depth[-1] > 3):
-                        # make upstream valve slower than wetland to avoid any oscillatory behavior due to travel time
-                        upstream_basin_valve.target_setting = upstream_basin_valve.current_setting - 0.1*K_p*(error/wetland_depth[-1]) # open the upstream valve
-                        # we can get rid of water with just local control, but we need the upstream asset if we want to add water
+                    if (upstream_basin_depth[-1] > 8): # don't flood
+                        upstream_basin_valve.target_setting = upstream_basin_valve.current_setting + K_p*(upstream_basin_depth[-1] - 8)
+                        # open proportionally to depth above 8 feet (flooding depth is 10 feet)
+
+                    elif (upstream_basin_depth[-1] > 3):  # (retain a permanent depth of 3 feet)
+                        upstream_basin_valve.target_setting = upstream_basin_valve.current_setting - K_p*(error/wetland_depth[-1]) # open the upstream valve
+                        # we can get rid of water from the wetland with just local control, but we need the upstream asset if we want to add water
                     else:
                         upstream_basin_valve.target_setting = 0 # close the valve
 
@@ -374,8 +377,8 @@ def analysis(control_type,scenario=None):
 #uncontrolled_scenario = analysis("uncontrolled")
 #uncontrolled_scenario.to_csv("uncontrolled.csv")
 
-FWS_A = analysis("FWS","A")
-FWS_A.to_csv("FWS_A.csv")
+#FWS_A = analysis("FWS","A")
+#FWS_A.to_csv("FWS_A.csv")
 
 #FWS_B = analysis("FWS","B")
 #FWS_B.to_csv("FWS_B.csv")
@@ -383,11 +386,11 @@ FWS_A.to_csv("FWS_A.csv")
 #FWS_C = analysis("FWS","C")
 #FWS_C.to_csv("FWS_C.csv")
     
-#quantity_control = analysis("quantity")
-#quantity_control.to_csv("quantity_control.csv")
+quantity_control = analysis("quantity")
+quantity_control.to_csv("quantity_control.csv")
 
-#nitrate_removal_control = analysis("nitrate_removal")
-#nitrate_removal_control.to_csv("nitrate_removal.csv")
+nitrate_removal_control = analysis("nitrate_removal")
+nitrate_removal_control.to_csv("nitrate_removal.csv")
 
 
 

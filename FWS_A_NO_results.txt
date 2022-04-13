@@ -1,0 +1,4 @@
+NO removal efficiency:
+Cumulative Input = [15.71392789]
+Cumulative Output = [0.01859813]
+1 - (Input / Output) = [0.99881646]
